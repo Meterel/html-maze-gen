@@ -75,16 +75,17 @@
             100%{opacity: 0}
         }
 
-        #controls>*{
-            margin: 0px;
-        }
-
         #controls>*:not(input){
             text-align: center;
         }
 
+        #controls>br{
+            content: "";
+        }
+
         #controls,#controls *{
             transition: all 250ms;
+            margin: 0px;
         }
 
         input,button{
