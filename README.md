@@ -1,6 +1,6 @@
 # html-maze-gen
 
-## A maze generator made in HTML
+### A maze generator made in HTML
 
 The algorithm is a recoursive backtracer (even tough i use hunt and kill algorithm terminology in the code) but with different backtracing order
 
