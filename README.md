@@ -1,4 +1,4 @@
-# html-maze-gen
+# [html-maze-gen](https://meterel.github.io/html-maze-gen/)
 
 ### A maze generator made in HTML
 
