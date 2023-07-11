@@ -9,46 +9,28 @@
     </head>
 
     <style>
-        :root{
-            --walllen: 50px;
-            --outl: 3px;
-        }
-
         body{
             background: black;
             color: white;
             font-family: Arial, Helvetica, sans-serif;
         }
 
-        .row{
-            display: inline-flex;
-        }
-
-        .wall,.wallrot{
-            outline: var(--outl) solid white;
-        }
-
-        .wall{
-            height: var(--walllen);
-            width: 0px;
-        }
-
-        .wallrot{
-            height: 0px;
-            width: var(--walllen);
-            transform: translateY(var(--walllen));
-        }
-
-        .inv{
-            visibility: hidden;
-        }
-
         #maze{
             display: grid;
             width: fit-content;
-            border: var(--outl) solid white;
-            outline: var(--outl) solid white;
-            outline-offset: calc(var(--outl) * -2);
+            transform-origin: top left;
+            scale: 1;
+
+            outline: 1px solid white;
+            outline-offset: -1px;
+            padding-right: 1px;
+            padding-bottom: 1px;
+
+            /*
+                chrome doesnt follow spec
+                https://drafts.csswg.org/css-images/#propdef-image-rendering here it says that it should apply to all elements but on chrome it only applies on img elements
+            */
+            image-rendering: pixelated;
         }
 
         #controls{
@@ -56,7 +38,8 @@
             top: 0px;
             left: 0px;
             padding: 8px;
-            background: rgba(0,0,0,0.8);
+            background: rgba(0,0,0,0.5);
+            -webkit-backdrop-filter: blur(8px);
             backdrop-filter: blur(8px);
             border-bottom-right-radius: 8px;
             opacity: 0;
@@ -96,6 +79,10 @@
             border-radius: 8px;
         }
 
+        button:disabled{
+            opacity: 0.5;
+        }
+
         input[type=number]{
             appearance: textfield;
         }
@@ -107,126 +94,104 @@
         input:invalid{
             border-color: red;
         }
+
+        small{
+            opacity: 0.5;
+        }
+
+        a{
+            color: inherit;
+        }
     </style>
 
     <body>
         <div id="maze"></div>
-        <div class="wall"></div>
-        <div class="wallrot"></div>
-        <div class="row"></div>
 
         <div id="controls">
-            <p>Wall length</p>
-            <input oninput="if(value && checkValidity()) root.style.setProperty('--walllen',value+'px')" type="number" inputmode="numeric" min="1" max="1000" step="1" value="50">
-            <p>Wall thickness</p>
-            <input oninput="if(value && checkValidity()) root.style.setProperty('--outl',value+'px')" type="number" inputmode="numeric" min="1" max="1000" step="1" value="3">
+            <p>Scale</p>
+            <input oninput="if(checkValidity()) maze.style.scale=value/10" type="number" inputmode="numeric" min="10" max="10000" step="1" value="10" required>
 
             <br>
             <p>Gridsize</p>
-            <input onchange="generate()" id="gridsize" type="number" inputmode="numeric" min="2" max="1000" step="1" value="10">
+            <input id="gridsize" type="number" inputmode="numeric" min="3" max="99999" step="1" required>
             <div>
-                <input type="checkbox" id="no_dead_ends">
-                <label for="no_dead_ends">Few dead ends</label>
+                <input type="checkbox" id="few_dead_ends">
+                <label for="few_dead_ends">Few dead ends</label>
             </div>
-            
-            <button onclick="generate()">Generate</button>
-            
-            <br>
-            <p id="gen_time"></p>
-            <p id="rnd_time"></p>
 
             <br>
-            <a href="https://github.com/Meterel/html-maze-gen" style="opacity: 0.5;font-size: small;color: inherit;">Made by Meterel</a>
+            <p>Threads</p>
+            <small id="available_threads"></small>
+            <input id="threads" type="number" inputmode="numeric" min="1" step="1" required>
+
+            <br>
+            <button onclick="generate()" id="generate">Generate</button>
+
+            <br>
+            <p id="chunks_done"></p>
+            <p id="gen_time"></p>
+
+            <br>
+            <small><a href="https://github.com/Meterel/html-maze-gen">Made by Meterel</a></small>
         </div>
     </body>
 
     <script>
         "use strict";
 
-        const wall=document.getElementsByClassName("wall")[0];
-        wall.remove();
-        const wallrot=document.getElementsByClassName("wallrot")[0];
-        wallrot.remove();
-        const row=document.getElementsByClassName("row")[0];
-        row.remove();
         const maze=document.getElementById("maze");
 
-        const root=document.querySelector(':root');
-        const gridsize_elem=document.getElementById("gridsize");
+        const elem={
+            gridsize:document.getElementById("gridsize"),
+            threads:document.getElementById("threads"),
+            generate:document.getElementById("generate")
+        }
+
+        document.getElementById("available_threads").textContent=navigator.hardwareConcurrency+" available";
+        elem.threads.value=navigator.hardwareConcurrency;
+        elem.gridsize.value=Math.max(100,navigator.hardwareConcurrency);
+
+        const workers=[];
 
         function generate(){
-            if(!gridsize_elem.checkValidity() || !gridsize_elem.value) return; //who the hell decided that "" is a valid number? bruh
+            const threads=Number(elem.threads.value);
+            if(
+                !elem.gridsize.checkValidity() ||
+                !elem.threads.checkValidity() ||
+                threads>elem.gridsize.value
+            ) return;
 
-            maze.innerHTML="";
-            const gridsize=gridsize_elem.value;
-            const dead_ends=!document.getElementById("no_dead_ends").checked;
+            elem.generate.disabled=true;
 
-            let stamp=performance.now();
+            maze.replaceChildren();
+            const columns=Math.ceil(Math.sqrt(threads));
+            maze.style.gridTemplateColumns="repeat("+columns+",auto)";
 
-            const walls=new Array(gridsize);
-            for(let x=0;x<gridsize;x++){
-                walls[x]=new Array(gridsize);
-                for(let y=0;y<gridsize;y++){
-                    walls[x][y]=[true,true];
+            const gridsize=Math.round(elem.gridsize.value/columns);            
+            const few_dead_ends=document.getElementById("few_dead_ends").checked;
+
+            workers.length=threads;
+            const chunks=columns**2;
+
+            let chunks_done=0;
+            const stamp=performance.now();
+            for(let i=0;i<chunks;i++){
+                const t=chunks===1 ? 0 : Math.round((threads-1)/(chunks-1)*i);
+                workers[t]??=new Worker("maze gen.js");
+
+                const canvas=maze.appendChild(document.createElement("canvas"));
+                canvas.height=gridsize*7;
+                canvas.width=gridsize*7;
+                const offscreen=canvas.transferControlToOffscreen();
+
+                workers[t].onmessage=()=>{
+                    document.getElementById("gen_time").textContent="Generation: "+(performance.now()-stamp)+"ms";
+                    if(++chunks_done===chunks) elem.generate.disabled=false;
+                    document.getElementById("chunks_done").textContent="Chunks generated: "+chunks_done+"/"+chunks;
                 }
+                workers[t].postMessage([gridsize,few_dead_ends,offscreen],[offscreen]);
             }
-
-            const hunter={
-                occupied:new Set(),
-                pos:new Array(2),
-            };
-            for(let i=0;i<2;i++) hunter.pos[i]=Math.round(Math.random()*(gridsize-1));
-            hunter.huntidx=hunter.occupied.entries();
-
-            while(hunter.occupied.size<gridsize**2){
-                const posrot=[[1,0],[0,1],[-1,0],[0,-1]];
-
-                for(let i=3;i>=0;i--){
-                    const rot=Math.round(Math.random()*i);
-                    const to=[hunter.pos[0]+posrot[rot][0],hunter.pos[1]+posrot[rot][1]];
-                    const tos=JSON.stringify(to);
-                    if(!hunter.occupied.has(tos) && to[0]>=0 && to[0]<gridsize && to[1]>=0 && to[1]<gridsize){
-                        hunter.pos=to;
-                        hunter.occupied.add(tos);
-                        hunter.hunting=false;
-                        hunter.rot=posrot[rot];
-                        break;
-                    }
-                    posrot.splice(rot,1);
-                }
-
-                if(!posrot.length){ //[] is true according to the if, but []==false is true too, im going insane
-                    if(dead_ends || hunter.hunting){
-                        hunter.pos=JSON.parse(hunter.huntidx.next().value[1]);
-                        continue;
-                    }
-                    hunter.pos[0]+=hunter.rot[0];
-                    hunter.pos[1]+=hunter.rot[1];
-                    hunter.hunting=true;
-                }
-
-                const x=hunter.pos[0]-Math.min(hunter.rot[0],0);
-                const y=hunter.pos[1]-Math.min(hunter.rot[1],0);
-                if(x<gridsize && x>=0 && y<gridsize && y>=0) walls[x][y][Math.abs(hunter.rot[0])]=false;
-            }
-
-            stamp=performance.now()-stamp;
-            document.getElementById("gen_time").innerText="Generation: "+stamp+"ms";
-            stamp=performance.now();
-
-            for(let y=gridsize-1;y>=0;y--){
-                const r=maze.appendChild(row.cloneNode());
-                for(let x=0;x<gridsize;x++){
-                    const w=r.appendChild(wall.cloneNode());
-                    if(!x || !walls[x][y][1]) w.className+=" inv";
-                    const wr=r.appendChild(wallrot.cloneNode());
-                    if(!y || !walls[x][y][0]) wr.className+=" inv";
-                }
-            }
-
-            stamp=performance.now()-stamp;
-            document.getElementById("rnd_time").innerText="Rendering: "+stamp+"ms";
-        };
+        }
 
         generate();
     </script>

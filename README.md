@@ -1,25 +1,25 @@
 # [html-maze-gen](https://meterel.github.io/html-maze-gen/)
 
-### A maze generator made in HTML
+### A fast multithreaded maze generator
 
-The algorithm is a recoursive backtracer (even tough i use hunt and kill algorithm terminology in the code) but with different backtracing order
+Pros:
 
-The maze is made with `div` elements without using `canvas`
+* The algorithm and rendering is multithreaded using `Worker`s, dividing the maze in chunks and assigning them evenly to each thread
 
-#
-
-Main performance points:
+* The maze is rendered with one `OffscreenCanvas` per chunk making the rendering multithreaded
 
 * The algorithm stores occupied cells in a `Set` making the search time very little
 
-* The walls are added to the maze with the `appendChild` method and not by adding HTML code directly to `innerHTML` because every time that value is changed there is some reparsing happening making the "rendering" process very slow
+* To use arrays in a `Set`, instead of converting them to a `String` with `JSON.stringify` and back with `JSON.parse`, I encode and decode them to a `Number` which is around 10 times faster, for example [86,64] -> 8600064
 
-* Preallocation is used on arrays such as the ones where the maze's walls are stored
+* Preallocation is used on `Array`s such as the ones where the maze's walls are stored
 
 #
 
-Possible performance improvements:
+Cons:
 
-* Sadly in Javascript arrays are not comparable so to use them in a `Set` (such as the one where the position of occupied cells are stored) i have to convert them to string using `JSON.stringify` and so to get it back from the set i have to use `JSON.parse` hence degrading performance
+* Because the maze gets divided in chunks when multithreaded, the quality of the maze will drop if the gridsize is small
 
-* Using a `canvas` to display the maze would be provably faster
+* The maze might appear blurry on Chrome because it doesn't follow spec, making `image-rendering` only apply on `img` elements instead of [all elements](https://drafts.csswg.org/css-images/#propdef-image-rendering)
+
+* When multithreaded the borders between chunks aren't 100% seamless
