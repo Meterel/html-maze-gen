@@ -16,14 +16,11 @@
         }
 
         #maze{
-            display: grid;
-            width: fit-content;
             transform-origin: top left;
-            scale: 1;
 
             outline: 1px solid white;
             outline-offset: -1px;
-            padding-right: 1px;
+            padding-left: 1px;
             padding-bottom: 1px;
 
             /*
@@ -72,7 +69,7 @@
         }
 
         input,button{
-            background-color: transparent;
+            background: transparent;
             color: inherit;
             outline: none;
             border: 1px solid white;
@@ -105,15 +102,15 @@
     </style>
 
     <body>
-        <div id="maze"></div>
+        <canvas id="maze"></canvas>
 
         <div id="controls">
             <p>Scale</p>
-            <input oninput="if(checkValidity()) maze.style.scale=value/10" type="number" inputmode="numeric" min="10" max="10000" step="1" value="10" required>
+            <input oninput="if(checkValidity()) maze.style.scale=value" type="number" inputmode="numeric" min="1" max="1000" value="1" required>
 
             <br>
             <p>Gridsize</p>
-            <input id="gridsize" type="number" inputmode="numeric" min="3" max="99999" step="1" required>
+            <input id="gridsize" type="number" inputmode="numeric" min="3" step="1" required>
             <div>
                 <input type="checkbox" id="few_dead_ends">
                 <label for="few_dead_ends">Few dead ends</label>
@@ -141,10 +138,53 @@
 
         const maze=document.getElementById("maze");
 
+
+
+        const gl=maze.getContext("webgl2",{alpha:false,antialias:false,desynchronized:true,preserveDrawingBuffer:true});
+
+        gl.clearColor(0,0,0,1);
+        gl.enableVertexAttribArray(0);
+
+
+        const vertex_shader=gl.createShader(gl.VERTEX_SHADER);
+        gl.shaderSource(vertex_shader,`
+            attribute vec2 position;
+
+            void main(){
+                gl_Position=vec4(position,0.,1.);
+            }
+        `);
+        gl.compileShader(vertex_shader);
+
+        const fragment_shader=gl.createShader(gl.FRAGMENT_SHADER);
+        gl.shaderSource(fragment_shader,`
+            void main(){
+                gl_FragColor=vec4(1.);
+            }
+        `);
+        gl.compileShader(fragment_shader);
+
+        const shader_program=gl.createProgram();
+        gl.attachShader(shader_program,vertex_shader);
+        gl.attachShader(shader_program,fragment_shader);
+        gl.linkProgram(shader_program);
+        gl.useProgram(shader_program);
+
+
+        gl.bindBuffer(gl.ARRAY_BUFFER,gl.createBuffer());
+
+        gl.vertexAttribPointer(gl.getAttribLocation(shader_program,"position"),2,gl.FLOAT,false,0,0);
+
+
+
         const elem={
             gridsize:document.getElementById("gridsize"),
+            few_dead_ends:document.getElementById("few_dead_ends"),
             threads:document.getElementById("threads"),
-            generate:document.getElementById("generate")
+            generate:document.getElementById("generate"),
+
+            chunks_done:document.getElementById("chunks_done"),
+            gen_time:document.getElementById("gen_time")
         }
 
         document.getElementById("available_threads").textContent=navigator.hardwareConcurrency+" available";
@@ -163,12 +203,15 @@
 
             elem.generate.disabled=true;
 
-            maze.replaceChildren();
             const columns=Math.ceil(Math.sqrt(threads));
-            maze.style.gridTemplateColumns="repeat("+columns+",auto)";
+            const chunk_gridsize=Math.round(elem.gridsize.value/columns);
+            const gridsize=chunk_gridsize*columns;
 
-            const gridsize=Math.round(elem.gridsize.value/columns);            
-            const few_dead_ends=document.getElementById("few_dead_ends").checked;
+            maze.width=gridsize*7;
+            maze.height=gridsize*7;
+            gl.viewport(0,0,maze.width,maze.height);
+            gl.clear(gl.COLOR_BUFFER_BIT);
+            const px=2/maze.width;
 
             workers.length=threads;
             const chunks=columns**2;
@@ -179,17 +222,21 @@
                 const t=chunks===1 ? 0 : Math.round((threads-1)/(chunks-1)*i);
                 workers[t]??=new Worker("maze gen.js");
 
-                const canvas=maze.appendChild(document.createElement("canvas"));
-                canvas.height=gridsize*7;
-                canvas.width=gridsize*7;
-                const offscreen=canvas.transferControlToOffscreen();
+                workers[t].onmessage=(e)=>{
+                    gl.bufferData(gl.ARRAY_BUFFER,e.data,gl.STREAM_DRAW);
+                    gl.drawArrays(gl.LINES,0,e.data.length/2);
 
-                workers[t].onmessage=()=>{
-                    document.getElementById("gen_time").textContent="Generation: "+(performance.now()-stamp)+"ms";
+                    elem.gen_time.textContent="Generation: "+(performance.now()-stamp)+"ms";
                     if(++chunks_done===chunks) elem.generate.disabled=false;
-                    document.getElementById("chunks_done").textContent="Chunks generated: "+chunks_done+"/"+chunks;
+                    elem.chunks_done.textContent="Chunks generated: "+chunks_done+"/"+chunks;
                 }
-                workers[t].postMessage([gridsize,few_dead_ends,offscreen],[offscreen]);
+                workers[t].postMessage([
+                    chunk_gridsize,
+                    elem.few_dead_ends.checked,
+                    px,
+                    2/columns*(i%columns)-1,
+                    2/columns*Math.floor(i/columns)-1
+                ]);
             }
         }
 
