@@ -17,46 +17,58 @@ onmessage=(e)=>{
     const cells=new Array(gridsize);
     for(let x=0;x<gridsize;x++){
         cells[x]=new Array(gridsize);
-        for(let y=0;y<gridsize;y++){
-            cells[x][y]=[true,true,false]; //wall x, wall y, occupied
-        }
+        for(let y=0;y<gridsize;y++) cells[x][y]=[true,true,false]; //wall x, wall y, occupied
     }
 
 
     const occupied=[];
     let searching=false;
-    let pos=[Math.floor(Math.random()*gridsize),Math.floor(Math.random()*gridsize)];
-    let rot;
+
+    let pos_x=Math.floor(Math.random()*gridsize);
+    let pos_y=Math.floor(Math.random()*gridsize);
+
+    let rot_x;
+    let rot_y;
 
     for(;;){
         const posrot=[[1,0],[0,1],[-1,0],[0,-1]];
 
         for(let i=4;i>0;i--){
             const r=Math.floor(Math.random()*i);
-            const to=[pos[0]+posrot[r][0],pos[1]+posrot[r][1]];
-            if(to[0]>=0 && to[0]<gridsize && to[1]>=0 && to[1]<gridsize && !cells[to[0]][to[1]][2]){
-                pos=to;
-                rot=posrot[r];
-                occupied.push(to);
-                cells[to[0]][to[1]][2]=true;
+
+            const to_x=pos_x+posrot[r][0];
+            const to_y=pos_y+posrot[r][1];
+            if(to_x>=0 && to_x<gridsize && to_y>=0 && to_y<gridsize && !cells[to_x][to_y][2]){
+                pos_x=to_x;
+                pos_y=to_y;
+                [rot_x,rot_y]=posrot[r];
+                occupied.push([to_x,to_y]);
+                cells[to_x][to_y][2]=true;
                 searching=false;
                 break;
             }
+
             posrot.splice(r,1);
         }
 
         if(!posrot.length){
             if(!few_dead_ends || searching){
-                pos=occupied.pop();
-                if(!pos) break;
+                if(!occupied.length) break;
+                [pos_x,pos_y]=occupied.pop();
                 continue;
             }
-            const to=[pos[0]+rot[0],pos[1]+rot[1]];
-            if(to[0]>=0 && to[0]<gridsize && to[1]>=0 && to[1]<gridsize) pos=to;
+
+            const to_x=pos_x+rot_x;
+            const to_y=pos_y+rot_y;
+            if(to_x>=0 && to_x<gridsize && to_y>=0 && to_y<gridsize){
+                pos_x=to_x;
+                pos_y=to_y;
+            }
+
             searching=true;
         }
 
-        cells[pos[0]-Math.min(rot[0],0)][pos[1]-Math.min(rot[1],0)][Math.abs(rot[0])]=false;
+        cells[pos_x-Math.min(rot_x,0)][pos_y-Math.min(rot_y,0)][Math.abs(rot_x)]=false;
     }
 
 
@@ -67,34 +79,34 @@ onmessage=(e)=>{
     
     for(let x=0;x<gridsize;x++){
         const xp=offset_x+x*7*px;
-        let start=null;
+        let start_y=null;
 
         for(let y=0;y<gridsize;y++){
-            if(!start && cells[x][y][1]){
-                start=[xp,offset_y+y*7*px-px];
-            }else if(start && !cells[x][y][1]){
-                lines.push(...start,xp,offset_y+y*7*px);
-                start=null;
+            if(start_y===null && cells[x][y][1])
+                start_y=offset_y+y*7*px-px;
+            else if(start_y!==null && !cells[x][y][1]){
+                lines.push(xp,start_y,xp,offset_y+y*7*px);
+                start_y=null;
             }
         }
 
-        if(start && cells[x][gridsize-1][1]) lines.push(...start,xp,offset_y+gridsize*7*px);
+        if(start_y!==null && cells[x][gridsize-1][1]) lines.push(xp,start_y,xp,offset_y+gridsize*7*px);
     }
 
     for(let y=0;y<gridsize;y++){
         const yp=offset_y+y*7*px;
-        let start=null;
+        let start_x=null;
 
         for(let x=0;x<gridsize;x++){
-            if(!start && cells[x][y][0]){
-                start=[offset_x+x*7*px-px,yp];
-            }else if(start && !cells[x][y][0]){
-                lines.push(...start,offset_x+x*7*px,yp);
-                start=null;
+            if(start_x===null && cells[x][y][0])
+                start_x=offset_x+x*7*px-px;
+            else if(start_x!==null && !cells[x][y][0]){
+                lines.push(start_x,yp,offset_x+x*7*px,yp);
+                start_x=null;
             }
         }
 
-        if(start && cells[gridsize-1][y][0]) lines.push(...start,offset_x+gridsize*7*px,yp);
+        if(start_x!==null && cells[gridsize-1][y][0]) lines.push(start_x,yp,offset_x+gridsize*7*px,yp);
     }
     
     /*
