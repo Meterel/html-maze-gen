@@ -82,8 +82,7 @@ onmessage=(e)=>{
         let start_y=null;
 
         for(let y=0;y<gridsize;y++){
-            if(start_y===null && cells[x][y][1])
-                start_y=offset_y+y*7*px-px;
+            if(start_y===null && cells[x][y][1]) start_y=offset_y+y*7*px-px;
             else if(start_y!==null && !cells[x][y][1]){
                 lines.push(xp,start_y,xp,offset_y+y*7*px);
                 start_y=null;
@@ -98,8 +97,7 @@ onmessage=(e)=>{
         let start_x=null;
 
         for(let x=0;x<gridsize;x++){
-            if(start_x===null && cells[x][y][0])
-                start_x=offset_x+x*7*px-px;
+            if(start_x===null && cells[x][y][0]) start_x=offset_x+x*7*px-px;
             else if(start_x!==null && !cells[x][y][0]){
                 lines.push(start_x,yp,offset_x+x*7*px,yp);
                 start_x=null;
