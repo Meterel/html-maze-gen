@@ -219,15 +219,16 @@
             let chunks_done=0;
             const stamp=performance.now();
             for(let i=0;i<chunks;i++){
-                const t=chunks===1 ? 0 : Math.round((threads-1)/(chunks-1)*i);
+                const t=i%threads;
                 workers[t]??=new Worker("maze gen.js");
 
                 workers[t].onmessage=(e)=>{
                     gl.bufferData(gl.ARRAY_BUFFER,e.data,gl.STREAM_DRAW);
                     gl.drawArrays(gl.LINES,0,e.data.length/2);
-
                     elem.gen_time.textContent="Generation: "+(performance.now()-stamp)+"ms";
-                    if(++chunks_done===chunks) elem.generate.disabled=false;
+
+                    chunks_done++;
+                    if(chunks_done===chunks) elem.generate.disabled=false;
                     elem.chunks_done.textContent="Chunks generated: "+chunks_done+"/"+chunks;
                 }
                 workers[t].postMessage([
