@@ -4,7 +4,7 @@
 "use strict";
 
 
-onmessage=(e)=>{
+onmessage=e=>{
     const [
         gridsize,
         few_dead_ends,

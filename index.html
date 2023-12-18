@@ -137,9 +137,6 @@
         "use strict";
 
         const maze=document.getElementById("maze");
-
-
-
         const gl=maze.getContext("webgl2",{alpha:false,antialias:false,desynchronized:true,preserveDrawingBuffer:true});
 
         gl.clearColor(0,0,0,1);
@@ -206,6 +203,7 @@
             const columns=Math.ceil(Math.sqrt(threads));
             const chunk_gridsize=Math.round(elem.gridsize.value/columns);
             const gridsize=chunk_gridsize*columns;
+            const chunks=columns**2;
 
             maze.width=gridsize*7;
             maze.height=gridsize*7;
@@ -214,15 +212,10 @@
             const px=2/maze.width;
 
             workers.length=threads;
-            const chunks=columns**2;
+            for(let i=0;i<threads;i++){
+                workers[i]??=new Worker("maze gen.js");
 
-            let chunks_done=0;
-            const stamp=performance.now();
-            for(let i=0;i<chunks;i++){
-                const t=i%threads;
-                workers[t]??=new Worker("maze gen.js");
-
-                workers[t].onmessage=(e)=>{
+                workers[i].onmessage=e=>{
                     gl.bufferData(gl.ARRAY_BUFFER,e.data,gl.STREAM_DRAW);
                     gl.drawArrays(gl.LINES,0,e.data.length/2);
                     elem.gen_time.textContent="Generation: "+(performance.now()-stamp)+"ms";
@@ -231,16 +224,19 @@
                     if(chunks_done===chunks) elem.generate.disabled=false;
                     elem.chunks_done.textContent="Chunks generated: "+chunks_done+"/"+chunks;
                 }
-                workers[t].postMessage([
+            }
+
+            let chunks_done=0;
+            const stamp=performance.now();
+            for(let i=0;i<chunks;i++)
+                workers[i%threads].postMessage([
                     chunk_gridsize,
                     elem.few_dead_ends.checked,
                     px,
                     2/columns*(i%columns)-1,
                     2/columns*Math.floor(i/columns)-1
                 ]);
-            }
         }
-
         generate();
     </script>
 </html>
