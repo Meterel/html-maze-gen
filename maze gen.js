@@ -24,8 +24,8 @@ onmessage=e=>{
     const occupied=[];
     let searching=false;
 
-    let pos_x=Math.floor(Math.random()*gridsize);
-    let pos_y=Math.floor(Math.random()*gridsize);
+    let pos_x=Math.trunc(Math.random()*gridsize);
+    let pos_y=Math.trunc(Math.random()*gridsize);
 
     let rot_x;
     let rot_y;
@@ -34,7 +34,7 @@ onmessage=e=>{
         const posrot=[[1,0],[0,1],[-1,0],[0,-1]];
 
         for(let i=4;i>0;i--){
-            const r=Math.floor(Math.random()*i);
+            const r=Math.trunc(Math.random()*i);
 
             const to_x=pos_x+posrot[r][0];
             const to_y=pos_y+posrot[r][1];

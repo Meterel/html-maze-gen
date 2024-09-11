@@ -234,7 +234,7 @@
                     elem.few_dead_ends.checked,
                     px,
                     2/columns*(i%columns)-1,
-                    2/columns*Math.floor(i/columns)-1
+                    2/columns*Math.trunc(i/columns)-1
                 ]);
         }
         generate();
